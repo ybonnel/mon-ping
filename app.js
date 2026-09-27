@@ -15,7 +15,11 @@ let data = load();
 const $ = id => document.getElementById(id);
 const fmt = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const signed = n => `${n > 0 ? '+' : ''}${fmt(n)}`;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+};
 
 function load() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { name: '', startingPoints: 500, matches: [] }; }
@@ -23,6 +27,20 @@ function load() {
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function totalPoints() { return data.matches.reduce((total, m) => total + Number(m.delta), Number(data.startingPoints)); }
+function orderedMatches() { return data.matches.slice().sort((a, b) => a.date.localeCompare(b.date)); }
+function periodKey(date) {
+  const [year, month] = date.split('-').map(Number);
+  return month >= 7 && month <= 9 ? `${year}-07` : `${year}-${String(month).padStart(2, '0')}`;
+}
+function periodLabel(date) {
+  const [year, month] = periodKey(date).split('-').map(Number);
+  if (month === 7) return `juillet–septembre ${year}`;
+  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+}
+function pointsAtPeriodStart(date) {
+  const key = periodKey(date);
+  return orderedMatches().filter(match => periodKey(match.date) < key).reduce((total, match) => total + Number(match.delta), Number(data.startingPoints));
+}
 function getCalculation(myPoints, opponentPoints, result, coefficient) {
   if (!Number.isFinite(opponentPoints)) return null;
   const difference = Math.abs(myPoints - opponentPoints);
@@ -30,6 +48,23 @@ function getCalculation(myPoints, opponentPoints, result, coefficient) {
   const abnormal = result === 'win' ? opponentPoints > myPoints : opponentPoints <= myPoints;
   const key = result === 'win' ? (abnormal ? 'abnormalWin' : 'normalWin') : (abnormal ? 'abnormalLoss' : 'normalLoss');
   return { delta: row[key] * coefficient, label: `${result === 'win' ? 'Victoire' : 'Défaite'} ${abnormal ? 'anormale' : 'normale'}`, difference };
+}
+function recalculateDeltas() {
+  const matches = orderedMatches();
+  let currentPeriodPoints = Number(data.startingPoints);
+  let currentPeriod = null;
+  let periodDelta = 0;
+  matches.forEach(match => {
+    const matchPeriod = periodKey(match.date);
+    if (matchPeriod !== currentPeriod) {
+      if (currentPeriod !== null) currentPeriodPoints += periodDelta;
+      currentPeriod = matchPeriod;
+      periodDelta = 0;
+    }
+    const calculation = getCalculation(currentPeriodPoints, Number(match.opponentPoints), match.result, Number(match.coefficient));
+    if (calculation) match.delta = calculation.delta;
+    periodDelta += Number(match.delta);
+  });
 }
 function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === page));
@@ -45,7 +80,10 @@ function matchRow(match, detailed = false) {
 }
 function renderChart() {
   const host = $('chart');
-  const values = [Number(data.startingPoints), ...data.matches.slice(-14).map((_, index, arr) => Number(data.startingPoints) + data.matches.slice(0, data.matches.length - arr.length + index + 1).reduce((s, m) => s + Number(m.delta), 0))];
+  const dailyDeltas = new Map();
+  orderedMatches().forEach(match => dailyDeltas.set(match.date, (dailyDeltas.get(match.date) || 0) + Number(match.delta)));
+  let runningPoints = Number(data.startingPoints);
+  const values = [runningPoints, ...Array.from(dailyDeltas.values()).slice(-14).map(delta => (runningPoints += delta))];
   if (values.length < 2) { host.innerHTML = '<div class="empty-chart">Ajoute ton premier match pour voir ta progression.</div>'; return; }
   const min = Math.min(...values), max = Math.max(...values), range = Math.max(max - min, 8), w = 300, h = 125, pad = 8;
   const points = values.map((value, i) => `${pad + i * (w - pad * 2) / (values.length - 1)},${h - pad - ((value - min) / range) * (h - pad * 2)}`);
@@ -53,7 +91,7 @@ function renderChart() {
   host.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><line class="baseline" x1="0" y1="${h - pad}" x2="${w}" y2="${h - pad}"/><polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${points.map(p => `<circle class="dot" cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="3.5"/>`).join('')}</svg>`;
 }
 function render() {
-  const total = totalPoints(), delta = total - Number(data.startingPoints), matches = data.matches;
+  const total = totalPoints(), delta = total - Number(data.startingPoints), matches = orderedMatches();
   $('currentPoints').textContent = fmt(total);
   $('seasonDelta').textContent = `${signed(delta)} cette saison`;
   $('seasonDelta').className = delta >= 0 ? 'positive' : 'negative';
@@ -71,31 +109,33 @@ function render() {
 }
 function updateEstimate() {
   const opponentPoints = Number($('opponentPoints').value), coefficient = Number($('coefficient').value), result = document.querySelector('input[name="result"]:checked').value;
-  const calculation = getCalculation(totalPoints(), opponentPoints, result, coefficient);
+  const matchDate = $('matchDate').value || today();
+  const calculation = getCalculation(pointsAtPeriodStart(matchDate), opponentPoints, result, coefficient);
   if (!calculation) { $('estimateType').textContent = result === 'win' ? 'Victoire' : 'Défaite'; $('estimatePoints').textContent = '—'; $('estimateDetail').textContent = 'Renseigne les points de l’adversaire.'; return; }
   $('estimateType').textContent = calculation.label;
   $('estimatePoints').textContent = `${signed(calculation.delta)} pt`;
-  $('estimateDetail').textContent = `Écart actuel : ${fmt(calculation.difference)} points · coefficient ${String(coefficient).replace('.', ',')}`;
+  $('estimateDetail').textContent = `Période FFTT : ${periodLabel(matchDate)} · écart : ${fmt(calculation.difference)} points · coeff. ${String(coefficient).replace('.', ',')}`;
 }
 function toast(message) { const el = $('toast'); el.textContent = message; el.classList.add('visible'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('visible'), 2800); }
 
 document.querySelectorAll('[data-nav]').forEach(button => button.addEventListener('click', () => nav(button.dataset.nav)));
 $('settingsButton').addEventListener('click', () => nav('settings'));
 $('matchDate').value = today();
-['opponentPoints', 'coefficient'].forEach(id => $(id).addEventListener('input', updateEstimate));
+['matchDate', 'opponentPoints', 'coefficient'].forEach(id => $(id).addEventListener('input', updateEstimate));
 document.querySelectorAll('input[name="result"]').forEach(input => input.addEventListener('change', updateEstimate));
 $('matchForm').addEventListener('submit', event => {
   event.preventDefault();
   const opponentPoints = Number($('opponentPoints').value), coefficient = Number($('coefficient').value), result = document.querySelector('input[name="result"]:checked').value;
-  const calculation = getCalculation(totalPoints(), opponentPoints, result, coefficient);
+  const calculation = getCalculation(pointsAtPeriodStart($('matchDate').value), opponentPoints, result, coefficient);
   if (!calculation) return toast('Indique les points de ton adversaire.');
   data.matches.push({ id: crypto.randomUUID(), date: $('matchDate').value, opponent: $('opponent').value.trim(), opponentPoints, coefficient, result, delta: calculation.delta });
-  save(); render(); event.target.reset(); $('matchDate').value = today(); updateEstimate(); nav('dashboard'); toast(`Match enregistré : ${signed(calculation.delta)} point${Math.abs(calculation.delta) !== 1 ? 's' : ''}`);
+  recalculateDeltas(); save(); render(); event.target.reset(); $('matchDate').value = today(); updateEstimate(); nav('dashboard'); toast(`Match enregistré : ${signed(calculation.delta)} point${Math.abs(calculation.delta) !== 1 ? 's' : ''}`);
 });
-$('historyList').addEventListener('click', event => { const id = event.target.dataset.delete; if (!id) return; if (confirm('Supprimer ce match ?')) { data.matches = data.matches.filter(m => m.id !== id); save(); render(); toast('Match supprimé.'); } });
-$('profileForm').addEventListener('submit', event => { event.preventDefault(); data.name = $('playerName').value.trim(); data.startingPoints = Number($('startingPoints').value); save(); render(); updateEstimate(); toast('Réglages enregistrés.'); });
+$('historyList').addEventListener('click', event => { const id = event.target.dataset.delete; if (!id) return; if (confirm('Supprimer ce match ?')) { data.matches = data.matches.filter(m => m.id !== id); recalculateDeltas(); save(); render(); toast('Match supprimé.'); } });
+$('profileForm').addEventListener('submit', event => { event.preventDefault(); data.name = $('playerName').value.trim(); data.startingPoints = Number($('startingPoints').value); recalculateDeltas(); save(); render(); updateEstimate(); toast('Réglages enregistrés.'); });
 $('exportButton').addEventListener('click', () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `mon-ping-sauvegarde-${today()}.json`; link.click(); URL.revokeObjectURL(url); });
-$('importInput').addEventListener('change', async event => { const file = event.target.files[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported.matches) || !Number.isFinite(Number(imported.startingPoints))) throw new Error(); data = { name: imported.name || '', startingPoints: Number(imported.startingPoints), matches: imported.matches }; save(); render(); updateEstimate(); toast('Sauvegarde importée.'); } catch { toast('Ce fichier de sauvegarde est invalide.'); } event.target.value = ''; });
+$('importInput').addEventListener('change', async event => { const file = event.target.files[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported.matches) || !Number.isFinite(Number(imported.startingPoints))) throw new Error(); data = { name: imported.name || '', startingPoints: Number(imported.startingPoints), matches: imported.matches }; recalculateDeltas(); save(); render(); updateEstimate(); toast('Sauvegarde importée.'); } catch { toast('Ce fichier de sauvegarde est invalide.'); } event.target.value = ''; });
 $('resetButton').addEventListener('click', () => { if (confirm('Effacer définitivement tous tes matchs ?')) { data.matches = []; save(); render(); updateEstimate(); toast('Historique effacé.'); } });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
+recalculateDeltas(); save();
 render(); updateEstimate();
