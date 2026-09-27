@@ -1,0 +1,11 @@
+.delete-match {
+  border: 0;
+  background: #fff0f1;
+  color: #c4454d;
+  border-radius: 9px;
+  font-size: 21px;
+  line-height: 30px;
+  width: 31px;
+  height: 31px;
+  cursor: pointer;
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Mon Ping – Mes points",
+  "short_name": "Mon Ping",
+  "description": "Suivi personnel de points de classement au tennis de table.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#102a43",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
