@@ -23,7 +23,7 @@
 
     <section id="dashboard" class="page active" aria-labelledby="dashboardTitle">
       <div class="points-card">
-        <p id="dashboardTitle">Points actuels</p>
+        <p id="dashboardTitle">Points estimés</p>
         <strong id="currentPoints">500,0</strong>
         <span id="seasonDelta" class="positive">+0,0 cette saison</span>
       </div>
@@ -52,19 +52,19 @@
     </section>
 
     <section id="add" class="page" aria-labelledby="addTitle">
-      <div class="page-title"><p class="eyebrow">NOUVELLE RENCONTRE</p><h2 id="addTitle">Ajouter un match</h2><p>Le gain ou la perte est calculé automatiquement avec le barème FFTT.</p></div>
+      <div class="page-title"><p class="eyebrow">NOUVELLE RENCONTRE</p><h2 id="addTitle">Ajouter un match</h2><p>Le gain ou la perte est calculé automatiquement avec le barème FFTT de la période concernée.</p></div>
       <form id="matchForm" class="form-card">
         <div class="field"><label for="matchDate">Date</label><input id="matchDate" type="date" required></div>
         <div class="field"><label for="opponent">Adversaire <span>facultatif</span></label><input id="opponent" type="text" maxlength="60" placeholder="Ex. Martin D."></div>
         <div class="two-cols">
-          <div class="field"><label for="opponentPoints">Ses points</label><input id="opponentPoints" type="number" inputmode="decimal" min="0" step="0.1" placeholder="Ex. 845" required></div>
+          <div class="field"><label for="opponentPoints">Ses points de la période</label><input id="opponentPoints" type="number" inputmode="decimal" min="0" step="0.1" placeholder="Ex. 845" required></div>
           <fieldset class="choice-group"><legend>Résultat</legend><div class="segmented"><input id="resultWin" name="result" type="radio" value="win" checked><label for="resultWin">Victoire</label><input id="resultLoss" name="result" type="radio" value="loss"><label for="resultLoss">Défaite</label></div></fieldset>
         </div>
-        <div class="field"><label for="coefficient">Coefficient de l’épreuve</label><select id="coefficient"><option value="0.5">0,50</option><option value="0.75">0,75</option><option value="1" selected>1,00</option><option value="1.25">1,25</option><option value="1.5">1,50</option></select></div>
+        <div class="field"><label for="coefficient">Coefficient de l’épreuve</label><select id="coefficient"><option value="0.5">0,50</option><option value="0.75">0,75</option><option value="1" selected>1,00</option><option value="1.25">1,25</option><option value="1.5">1,50</option><option value="2">2,00</option></select></div>
         <div class="estimate"><span id="estimateType">Victoire normale</span><strong id="estimatePoints">+0,0 pt</strong><small id="estimateDetail">Renseigne les points de l’adversaire.</small></div>
         <button class="primary-button" type="submit">Enregistrer le match</button>
       </form>
-      <details class="rules"><summary>Comment sont calculés les points ?</summary><p>Le barème dépend de l’écart de points, du résultat et du coefficient de la compétition. Une victoire contre un joueur mieux classé est une « victoire anormale » ; une défaite contre un joueur moins classé est une « défaite anormale ».</p><a href="https://ttbrignoles.com/calculateur-de-points-2/" target="_blank" rel="noreferrer">Voir l’explication complète</a></details>
+      <details class="rules"><summary>Comment sont calculés les points ?</summary><p>Le barème dépend de l’écart de points, du résultat et du coefficient de la compétition. La FFTT utilise les points de la période en cours : juillet–septembre, puis chaque mois d’octobre à juin. Les matchs d’une même période ne se cumulent donc pas pour calculer leur gain ou leur perte. Une victoire contre un joueur mieux classé est une « victoire anormale » ; une défaite contre un joueur moins classé est une « défaite anormale ».</p><p>Cette application donne une estimation personnelle : les forfaits, bonus, dérive de fin de phase et réajustements FFTT ne sont pas encore automatisés.</p><a href="https://www.fftt.com/wp-content/uploads/2026/07/reglement_generaux_2026_2027.pdf" target="_blank" rel="noreferrer">Consulter le règlement FFTT</a></details>
     </section>
 
     <section id="history" class="page" aria-labelledby="historyTitle">
