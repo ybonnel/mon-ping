@@ -12,6 +12,7 @@ const BAR = [
 ];
 
 let data = load();
+let editingMatchId = null;
 const $ = id => document.getElementById(id);
 const fmt = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const signed = n => `${n > 0 ? '+' : ''}${fmt(n)}`;
@@ -37,9 +38,9 @@ function periodLabel(date) {
   if (month === 7) return `juillet–septembre ${year}`;
   return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
 }
-function pointsAtPeriodStart(date) {
+function pointsAtPeriodStart(date, excludedMatchId = null) {
   const key = periodKey(date);
-  return orderedMatches().filter(match => periodKey(match.date) < key).reduce((total, match) => total + Number(match.delta), Number(data.startingPoints));
+  return orderedMatches().filter(match => match.id !== excludedMatchId && periodKey(match.date) < key).reduce((total, match) => total + Number(match.delta), Number(data.startingPoints));
 }
 function getCalculation(myPoints, opponentPoints, result, coefficient) {
   if (!Number.isFinite(opponentPoints)) return null;
@@ -76,7 +77,8 @@ function formatDate(value) { return new Intl.DateTimeFormat('fr-FR', { day: 'num
 function displayName(match) { return match.opponent ? escapeHtml(match.opponent) : `Adversaire (${fmt(match.opponentPoints)} pts)`; }
 function matchRow(match, detailed = false) {
   const kind = match.result === 'win' ? 'win' : 'loss';
-  return `<article class="match-row" ${detailed ? `data-id="${match.id}"` : ''}><div class="match-badge ${kind}">${kind === 'win' ? 'V' : 'D'}</div><div class="match-meta"><strong>${displayName(match)}</strong><span>${formatDate(match.date)} · ${fmt(match.opponentPoints)} pts · coeff. ${String(match.coefficient).replace('.', ',')}</span></div><div class="delta ${kind}">${signed(match.delta)}</div>${detailed ? `<button class="delete-match" aria-label="Supprimer ce match" data-delete="${match.id}">×</button>` : ''}</article>`;
+  const actions = detailed ? `<button class="edit-match" aria-label="Modifier ce match" data-edit="${match.id}">✎</button><button class="delete-match" aria-label="Supprimer ce match" data-delete="${match.id}">×</button>` : '';
+  return `<article class="match-row" ${detailed ? `data-id="${match.id}"` : ''}><div class="match-badge ${kind}">${kind === 'win' ? 'V' : 'D'}</div><div class="match-meta"><strong>${displayName(match)}</strong><span>${formatDate(match.date)} · ${fmt(match.opponentPoints)} pts · coeff. ${String(match.coefficient).replace('.', ',')}</span></div><div class="match-actions"><div class="delta ${kind}">${signed(match.delta)}</div>${actions}</div></article>`;
 }
 function renderChart() {
   const host = $('chart');
@@ -110,13 +112,39 @@ function render() {
 function updateEstimate() {
   const opponentPoints = Number($('opponentPoints').value), coefficient = Number($('coefficient').value), result = document.querySelector('input[name="result"]:checked').value;
   const matchDate = $('matchDate').value || today();
-  const calculation = getCalculation(pointsAtPeriodStart(matchDate), opponentPoints, result, coefficient);
+  const calculation = getCalculation(pointsAtPeriodStart(matchDate, editingMatchId), opponentPoints, result, coefficient);
   if (!calculation) { $('estimateType').textContent = result === 'win' ? 'Victoire' : 'Défaite'; $('estimatePoints').textContent = '—'; $('estimateDetail').textContent = 'Renseigne les points de l’adversaire.'; return; }
   $('estimateType').textContent = calculation.label;
   $('estimatePoints').textContent = `${signed(calculation.delta)} pt`;
   $('estimateDetail').textContent = `Période FFTT : ${periodLabel(matchDate)} · écart : ${fmt(calculation.difference)} points · coeff. ${String(coefficient).replace('.', ',')}`;
 }
 function toast(message) { const el = $('toast'); el.textContent = message; el.classList.add('visible'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('visible'), 2800); }
+function setEditingMatch(match) {
+  editingMatchId = match ? match.id : null;
+  $('addTitle').textContent = match ? 'Modifier un match' : 'Ajouter un match';
+  $('matchFormIntro').textContent = match ? 'Modifie les informations puis enregistre : les points seront recalculés.' : 'Le gain ou la perte est calculé automatiquement avec le barème FFTT de la période concernée.';
+  $('editNotice').hidden = !match;
+  $('saveMatchButton').textContent = match ? 'Enregistrer les modifications' : 'Enregistrer le match';
+  $('cancelEditButton').hidden = !match;
+}
+function resetMatchForm() {
+  $('matchForm').reset();
+  $('matchDate').value = today();
+  setEditingMatch(null);
+  updateEstimate();
+}
+function editMatch(id) {
+  const match = data.matches.find(item => item.id === id);
+  if (!match) return;
+  $('matchDate').value = match.date;
+  $('opponent').value = match.opponent || '';
+  $('opponentPoints').value = match.opponentPoints;
+  $('coefficient').value = match.coefficient;
+  $(`result${match.result === 'win' ? 'Win' : 'Loss'}`).checked = true;
+  setEditingMatch(match);
+  updateEstimate();
+  nav('add');
+}
 
 document.querySelectorAll('[data-nav]').forEach(button => button.addEventListener('click', () => nav(button.dataset.nav)));
 $('settingsButton').addEventListener('click', () => nav('settings'));
@@ -126,12 +154,22 @@ document.querySelectorAll('input[name="result"]').forEach(input => input.addEven
 $('matchForm').addEventListener('submit', event => {
   event.preventDefault();
   const opponentPoints = Number($('opponentPoints').value), coefficient = Number($('coefficient').value), result = document.querySelector('input[name="result"]:checked').value;
-  const calculation = getCalculation(pointsAtPeriodStart($('matchDate').value), opponentPoints, result, coefficient);
+  const calculation = getCalculation(pointsAtPeriodStart($('matchDate').value, editingMatchId), opponentPoints, result, coefficient);
   if (!calculation) return toast('Indique les points de ton adversaire.');
-  data.matches.push({ id: crypto.randomUUID(), date: $('matchDate').value, opponent: $('opponent').value.trim(), opponentPoints, coefficient, result, delta: calculation.delta });
-  recalculateDeltas(); save(); render(); event.target.reset(); $('matchDate').value = today(); updateEstimate(); nav('dashboard'); toast(`Match enregistré : ${signed(calculation.delta)} point${Math.abs(calculation.delta) !== 1 ? 's' : ''}`);
+  const match = { id: editingMatchId || crypto.randomUUID(), date: $('matchDate').value, opponent: $('opponent').value.trim(), opponentPoints, coefficient, result, delta: calculation.delta };
+  const isEditing = Boolean(editingMatchId);
+  if (isEditing) data.matches = data.matches.map(item => item.id === editingMatchId ? match : item);
+  else data.matches.push(match);
+  recalculateDeltas(); save(); render(); resetMatchForm(); nav('dashboard'); toast(isEditing ? 'Match modifié et points recalculés.' : `Match enregistré : ${signed(match.delta)} point${Math.abs(match.delta) !== 1 ? 's' : ''}`);
 });
-$('historyList').addEventListener('click', event => { const id = event.target.dataset.delete; if (!id) return; if (confirm('Supprimer ce match ?')) { data.matches = data.matches.filter(m => m.id !== id); recalculateDeltas(); save(); render(); toast('Match supprimé.'); } });
+$('cancelEditButton').addEventListener('click', resetMatchForm);
+$('historyList').addEventListener('click', event => {
+  const editButton = event.target.closest('[data-edit]');
+  if (editButton) return editMatch(editButton.dataset.edit);
+  const deleteButton = event.target.closest('[data-delete]');
+  if (!deleteButton) return;
+  if (confirm('Supprimer ce match ?')) { data.matches = data.matches.filter(m => m.id !== deleteButton.dataset.delete); recalculateDeltas(); save(); render(); toast('Match supprimé.'); }
+});
 $('profileForm').addEventListener('submit', event => { event.preventDefault(); data.name = $('playerName').value.trim(); data.startingPoints = Number($('startingPoints').value); recalculateDeltas(); save(); render(); updateEstimate(); toast('Réglages enregistrés.'); });
 $('exportButton').addEventListener('click', () => { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `mon-ping-sauvegarde-${today()}.json`; link.click(); URL.revokeObjectURL(url); });
 $('importInput').addEventListener('change', async event => { const file = event.target.files[0]; if (!file) return; try { const imported = JSON.parse(await file.text()); if (!Array.isArray(imported.matches) || !Number.isFinite(Number(imported.startingPoints))) throw new Error(); data = { name: imported.name || '', startingPoints: Number(imported.startingPoints), matches: imported.matches }; recalculateDeltas(); save(); render(); updateEstimate(); toast('Sauvegarde importée.'); } catch { toast('Ce fichier de sauvegarde est invalide.'); } event.target.value = ''; });
@@ -139,3 +177,4 @@ $('resetButton').addEventListener('click', () => { if (confirm('Effacer définit
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
 recalculateDeltas(); save();
 render(); updateEstimate();
+

@@ -9,3 +9,38 @@
   height: 31px;
   cursor: pointer;
 }
+
+.match-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.edit-match {
+  border: 0;
+  background: #e7f2fc;
+  color: #0d5798;
+  border-radius: 9px;
+  font-size: 17px;
+  font-weight: 800;
+  width: 31px;
+  height: 31px;
+  cursor: pointer;
+}
+
+.edit-notice {
+  margin: 0 0 17px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff5da;
+  color: #795400;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-actions {
+  display: grid;
+  gap: 10px;
+}
+
