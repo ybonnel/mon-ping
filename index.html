@@ -52,8 +52,9 @@
     </section>
 
     <section id="add" class="page" aria-labelledby="addTitle">
-      <div class="page-title"><p class="eyebrow">NOUVELLE RENCONTRE</p><h2 id="addTitle">Ajouter un match</h2><p>Le gain ou la perte est calculé automatiquement avec le barème FFTT de la période concernée.</p></div>
+      <div class="page-title"><p class="eyebrow">NOUVELLE RENCONTRE</p><h2 id="addTitle">Ajouter un match</h2><p id="matchFormIntro">Le gain ou la perte est calculé automatiquement avec le barème FFTT de la période concernée.</p></div>
       <form id="matchForm" class="form-card">
+        <p id="editNotice" class="edit-notice" hidden>Tu modifies un match existant.</p>
         <div class="field"><label for="matchDate">Date</label><input id="matchDate" type="date" required></div>
         <div class="field"><label for="opponent">Adversaire <span>facultatif</span></label><input id="opponent" type="text" maxlength="60" placeholder="Ex. Martin D."></div>
         <div class="two-cols">
@@ -62,7 +63,7 @@
         </div>
         <div class="field"><label for="coefficient">Coefficient de l’épreuve</label><select id="coefficient"><option value="0.5">0,50</option><option value="0.75">0,75</option><option value="1" selected>1,00</option><option value="1.25">1,25</option><option value="1.5">1,50</option><option value="2">2,00</option></select></div>
         <div class="estimate"><span id="estimateType">Victoire normale</span><strong id="estimatePoints">+0,0 pt</strong><small id="estimateDetail">Renseigne les points de l’adversaire.</small></div>
-        <button class="primary-button" type="submit">Enregistrer le match</button>
+        <div class="form-actions"><button id="saveMatchButton" class="primary-button" type="submit">Enregistrer le match</button><button id="cancelEditButton" class="secondary-button" type="button" hidden>Annuler la modification</button></div>
       </form>
       <details class="rules"><summary>Comment sont calculés les points ?</summary><p>Le barème dépend de l’écart de points, du résultat et du coefficient de la compétition. La FFTT utilise les points de la période en cours : juillet–septembre, puis chaque mois d’octobre à juin. Les matchs d’une même période ne se cumulent donc pas pour calculer leur gain ou leur perte. Une victoire contre un joueur mieux classé est une « victoire anormale » ; une défaite contre un joueur moins classé est une « défaite anormale ».</p><p>Cette application donne une estimation personnelle : les forfaits, bonus, dérive de fin de phase et réajustements FFTT ne sont pas encore automatisés.</p><a href="https://www.fftt.com/wp-content/uploads/2026/07/reglement_generaux_2026_2027.pdf" target="_blank" rel="noreferrer">Consulter le règlement FFTT</a></details>
     </section>
@@ -99,3 +100,4 @@
   <script src="app.js"></script>
 </body>
 </html>
+
